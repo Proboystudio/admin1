@@ -173,7 +173,8 @@
         merged.features = Array.isArray(data.features) ? data.features.map(item => ({ icon: String(item.icon || 'fa-star'), title: String(item.title || ''), description: String(item.description || ''), hidden: item.hidden === true || item.hidden === 'true' })).filter(item => !/^(ai projects|web projects|web development)$/i.test(item.title.trim())) : clone(DEFAULTS.features);
         merged.games = Array.isArray(data.games) ? data.games.map(item => {
           const oldUrl = String(item.url || '').trim();
-          const webUrl = String(item.webUrl || (oldUrl && oldUrl !== '#games' ? oldUrl : '')).trim();
+          const legacyIsHome = (() => { try { const u = new URL(oldUrl, window.location.href); return u.origin === 'https://proboystudio.github.io' && (u.pathname === '/' || u.pathname === '/index.html'); } catch (_) { return false; } })();
+          const webUrl = String(item.webUrl || (oldUrl && oldUrl !== '#games' && !legacyIsHome ? oldUrl : '')).trim();
           const androidUrl = String(item.androidUrl || item.playStoreUrl || '').trim();
           const iosUrl = String(item.iosUrl || item.appStoreUrl || '').trim();
           const pcUrl = String(item.pcUrl || '').trim();
@@ -352,7 +353,7 @@
               <label><input type="checkbox" data-platform-check="ios" ${checked('ios')}> iOS</label>
               <label><input type="checkbox" data-platform-check="pc" ${checked('pc')}> PC</label>
             </div><small>Select every method this game supports. Add a link for every selected option; the public Play Game button will show these options.</small></div>
-            <div class="field"><label>Web game URL</label><input data-key="webUrl" maxlength="1500" placeholder="games/my-game/index.html or https://..." value="${esc(webUrl)}"><small>Can be a relative website path or an HTTPS link.</small></div>
+            <div class="field"><label>Web game URL</label><input data-key="webUrl" maxlength="1500" placeholder="games/my-game/index.html or https://your-game-link..." value="${esc(webUrl)}"><small>Use the direct playable game page URL (not https://proboystudio.github.io/). Relative paths like games/my-game/index.html are supported.</small></div>
             <div class="field"><label>Android link</label><input data-key="androidUrl" maxlength="1500" placeholder="Google Play or Android download URL" value="${esc(androidUrl)}"></div>
             <div class="field"><label>iOS link</label><input data-key="iosUrl" maxlength="1500" placeholder="Apple App Store URL" value="${esc(iosUrl)}"></div>
             <div class="field"><label>PC link</label><input data-key="pcUrl" maxlength="1500" placeholder="PC game page or download URL" value="${esc(pcUrl)}"></div>
