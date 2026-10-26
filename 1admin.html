@@ -2,6 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#0a0c15">
+  <!-- HTML Guard (DosX-dev/HTML-Guard), pinned to verified main commit c6a975dee2eb4b6298baf96420a8e9ccc0874062. -->
+  <script src="https://cdn.jsdelivr.net/gh/DosX-dev/HTML-Guard@c6a975dee2eb4b6298baf96420a8e9ccc0874062/html-guard.min.js"></script>
+  <script>
+    // Enable documented drag deterrence only. Keep selection, context menus in editable
+    // controls, console diagnostics, and DevTools available to avoid breaking admin workflows.
+    if (typeof HtmlGuard !== "undefined" && HtmlGuard.protections) {
+      HtmlGuard.protections.blockDrag();
+    }
+  </script>
   <title>Admin Panel · Proboy Studio Game Development</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
   <style>
@@ -20,6 +29,17 @@
     .editor-item{min-width:0;overflow-wrap:anywhere}.form-grid>*{min-width:0}.field input,.field textarea,.field select{width:100%;max-width:100%}.field small{overflow-wrap:anywhere}.game-cover-preview{max-width:100%;height:auto;object-fit:contain}
     @media(max-height:520px) and (orientation:landscape){.wrap{padding:12px clamp(12px,3vw,28px)}.topbar{padding-bottom:12px}.login-card{max-height:95vh;overflow:auto}.side{position:static;max-width:100%;overflow-x:auto;display:flex;gap:8px}.side button{white-space:nowrap}.layout{grid-template-columns:1fr}.panel-section{min-width:0}}
       .platform-picks{display:flex;flex-wrap:wrap;gap:10px}.platform-picks label{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.025);cursor:pointer}.platform-picks input{width:18px;height:18px;accent-color:#8b76ff}.fixed-category{margin-top:0;padding:10px 12px;min-height:42px;display:flex;align-items:center;border:1px solid var(--line);border-radius:10px;background:rgba(123,97,255,.08);color:var(--text);font-weight:700}
+  </style>
+
+  <!-- Image-save deterrence: blocks the usual context-menu/drag shortcuts for displayed images. -->
+  <style id="image-download-deterrence">
+    img {
+      -webkit-user-drag: none;
+      user-drag: none;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
   </style>
 </head>
 <body>
@@ -309,11 +329,22 @@
           return url.href;
         } catch (error) { return ''; }
       }
+      function isProboyHomepageLink(value) {
+        const raw = String(value || '').trim();
+        if (!raw || raw.startsWith('//')) return false;
+        try {
+          const base = new URL(websiteUrl);
+          const url = new URL(raw, websiteUrl);
+          const sameStudio = url.origin === base.origin || url.origin === 'https://proboystudio.github.io';
+          return sameStudio && (url.pathname === '/' || /^\/index\.html?$/i.test(url.pathname));
+        } catch (_) { return false; }
+      }
       function safeGameLink(value) {
         const raw = String(value || '').trim();
         if (!raw || raw.startsWith('//') || /^(javascript|data|vbscript|file|blob):/i.test(raw)) return '';
+        if (isProboyHomepageLink(raw)) return '';
         if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-          try { const url = new URL(raw); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
+          try { const url = new URL(raw); return ['http:', 'https:'].includes(url.protocol) && !isProboyHomepageLink(url.href) ? url.href : ''; }
           catch (error) { return ''; }
         }
         return raw;
@@ -352,7 +383,7 @@
               <label><input type="checkbox" data-platform-check="android" ${checked('android')}> Android</label>
               <label><input type="checkbox" data-platform-check="ios" ${checked('ios')}> iOS</label>
               <label><input type="checkbox" data-platform-check="pc" ${checked('pc')}> PC</label>
-            </div><small>Select every method this game supports. Add a link for every selected option; the public Play Game button will show these options.</small></div>
+            </div><small>Select any combination: Web + Android + iOS + PC are all supported together. Enter the matching link for every selected method; visitors press Play Game to choose one.</small></div>
             <div class="field"><label>Web game URL</label><input data-key="webUrl" maxlength="1500" placeholder="games/my-game/index.html or https://your-game-link..." value="${esc(webUrl)}"><small>Use the direct playable game page URL (not https://proboystudio.github.io/). Relative paths like games/my-game/index.html are supported.</small></div>
             <div class="field"><label>Android link</label><input data-key="androidUrl" maxlength="1500" placeholder="Google Play or Android download URL" value="${esc(androidUrl)}"></div>
             <div class="field"><label>iOS link</label><input data-key="iosUrl" maxlength="1500" placeholder="Apple App Store URL" value="${esc(iosUrl)}"></div>
@@ -493,8 +524,9 @@
           for (const platform of game.platforms) {
             const key = urlKeys[platform];
             const raw = String(game[key] || '').trim();
-            const normalized = safeGameLink(raw);
             if (!raw) return { error: 'Add the link for every selected play method.' };
+            if (platform === 'web' && isProboyHomepageLink(raw)) return { error: 'Your Web game link opens the main homepage. Enter the direct game page, for example games/my-game/index.html.' };
+            const normalized = safeGameLink(raw);
             if (!normalized) return { error: 'Use a relative website path or a public http/https link for every selected play method.' };
             game[key] = normalized;
           }
@@ -585,5 +617,63 @@
       })();
     })();
   </script>
+
+  <script id="image-download-deterrence-script">
+    (() => {
+      // Deterrence only: image files may still be retrieved through browser tools/direct URLs.
+      const findImage = (target) => target instanceof Element ? target.closest('img') : null;
+      document.addEventListener('contextmenu', (event) => {
+        if (findImage(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
+      document.addEventListener('dragstart', (event) => {
+        if (findImage(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
+      document.addEventListener('selectstart', (event) => {
+        if (findImage(event.target)) event.preventDefault();
+      }, true);
+    })();
+  </script>
+
+  <!-- Code-access deterrence only; browser-delivered HTML/JS cannot be made secret. -->
+  <script id="code-protection-deterrence">
+    (() => {
+      'use strict';
+      const isEditable = (target) => target instanceof Element && !!target.closest(
+        'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]'
+      );
+      document.addEventListener('keydown', (event) => {
+        const key = String(event.key || '').toLowerCase();
+        const mod = event.ctrlKey || event.metaKey;
+        const inspectCombo = mod && event.shiftKey && ['i', 'j', 'c', 'k'].includes(key);
+        const sourceOrSave = mod && ['u', 's'].includes(key);
+        const printPage = mod && key === 'p';
+        const devtoolsKey = key === 'f12';
+        // Do not interfere with editing controls, except F12 which is never needed in a form.
+        if (devtoolsKey || ((!isEditable(event.target)) && (inspectCombo || sourceOrSave || printPage))) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      document.addEventListener('contextmenu', (event) => {
+        if (!isEditable(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
+      // Prevent simple source-copy shortcuts, but leave normal copy/paste in inputs usable.
+      document.addEventListener('copy', (event) => {
+        if (!isEditable(event.target) && window.getSelection()?.toString()) {
+          event.preventDefault();
+        }
+      }, true);
+    })();
+  </script>
+
 </body>
 </html>
